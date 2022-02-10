@@ -1,0 +1,52 @@
+version: '3'
+
+services:
+  redis-master:
+    image: redis:latest
+    container_name: redis-master
+    hostname: redis-master
+    restart: unless-stopped
+    volumes:
+      - ./redis/master.conf:/etc/redis.conf
+    command: redis-server /etc/redis.conf
+    ports:
+      - "6379:6379"
+
+  redis-slave:
+    image: redis:latest
+    container_name: redis-slave
+    hostname: redis-slave
+    restart: unless-stopped
+    depends_on:
+      - redis-master
+    volumes:
+      - ./redis/slave.conf:/etc/redis.conf
+    command: redis-server /etc/redis.conf
+    ports:
+      - "6378:6378"
+
+  sentinel:
+    image: bitnami/redis-sentinel:latest
+    restart: unless-stopped
+    environment:
+      - REDIS_MASTER_HOST=redis-master
+      - REDIS_MASTER_PORT=6379
+      - REDIS_MASTER_SET=test
+      - REDIS_SENTINEL_QUORUM=2
+      - REDIS_SENTINEL_DOWN_AFTER_MILLISECONDS=1000
+      - REDIS_SENTINEL_FAILOVER_TIMEOUT=3000
+    depends_on:
+      - redis-master
+      - redis-slave
+    ports:
+      - '26379-26381:26379'
+
+  app:
+    build: .
+    container_name: app
+    hostname: app
+    restart: unless-stopped
+    depends_on:
+      - sentinel
+      - redis-master
+      - redis-slave
